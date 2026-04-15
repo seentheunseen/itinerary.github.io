@@ -627,10 +627,10 @@ function renderBudget() {
     <span style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;text-align:right">Actual</span>
   </div>
   ${data.budget.map(b=>`
-  <div class="budget-row budget-grid" style="padding:0">
+  <div class="budget-row budget-grid" style="padding:0 8px 0 0">
     <span style="font-size:.85rem;color:var(--text-dim);padding-left:8px;display:flex;align-items:center;gap:6px"><button class="icon-btn del" data-delbudget="${b.id}" style="padding:0 4px;height:20px;font-size:.7rem;flex-shrink:0" title="Delete row">✕</button><button class="icon-btn" data-editbudgetcat="${b.id}" style="padding:0 4px;height:20px;font-size:.7rem;flex-shrink:0" title="Edit category">✏️</button>${b.category}</span>
     <input class="budget-input" style="background:var(--input-bg);border:1px solid var(--border);color:var(--accent);padding-right:16px;margin:4px 0" value="${b.estimate}" data-budgetfield="${b.id}|estimate" />
-    <input class="budget-input" style="background:var(--input-bg);border:1px solid var(--border);color:var(--green);padding-right:16px;margin:4px 0" value="${b.actual}" placeholder="—" data-budgetfield="${b.id}|actual" />
+    <input class="budget-input" style="background:var(--input-bg);border:1px solid var(--border);color:var(--green);padding-right:16px;margin:4px 0 4px 0;margin-right:12px" value="${b.actual}" placeholder="—" data-budgetfield="${b.id}|actual" />
   </div>`).join("")}
   <button id="add-budget" style="width:100%;margin:6px 0;padding:10px;background:transparent;border:1px dashed rgba(200,149,108,.3);border-radius:10px;color:var(--accent);font-size:.82rem;font-weight:700;cursor:pointer">+ Add Category</button>
   <div class="budget-total budget-grid" style="padding:16px">
