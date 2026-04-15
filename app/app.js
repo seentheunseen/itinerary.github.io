@@ -405,7 +405,8 @@ function formatTripDates(m) {
   } else {
     dateStr = `${months[s.getMonth()]} ${s.getDate()} – ${months[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
   }
-  return dateStr + (m.daysCount ? ` · ${m.daysCount} Days` : "");
+  const count = data.days.length || m.daysCount;
+  return dateStr + (count ? ` · ${count} Days` : "");
 }
 
 // ─── RENDER ─────────────────────────────────────────────────────────────────
@@ -627,15 +628,22 @@ function renderBudget() {
   </div>
   ${data.budget.map(b=>`
   <div class="budget-row budget-grid" style="padding:0">
-    <span style="font-size:.85rem;color:var(--text-dim);padding-left:16px">${b.category}</span>
+    <span style="font-size:.85rem;color:var(--text-dim);padding-left:8px;display:flex;align-items:center;gap:6px"><button class="icon-btn del" data-delbudget="${b.id}" style="padding:0 4px;height:20px;font-size:.7rem;flex-shrink:0" title="Delete row">✕</button><button class="icon-btn" data-editbudgetcat="${b.id}" style="padding:0 4px;height:20px;font-size:.7rem;flex-shrink:0" title="Edit category">✏️</button>${b.category}</span>
     <input class="budget-input" style="background:var(--input-bg);border:1px solid var(--border);color:var(--accent);padding-right:16px;margin:4px 0" value="${b.estimate}" data-budgetfield="${b.id}|estimate" />
     <input class="budget-input" style="background:var(--input-bg);border:1px solid var(--border);color:var(--green);padding-right:16px;margin:4px 0" value="${b.actual}" placeholder="—" data-budgetfield="${b.id}|actual" />
   </div>`).join("")}
+  <button id="add-budget" style="width:100%;margin:6px 0;padding:10px;background:transparent;border:1px dashed rgba(200,149,108,.3);border-radius:10px;color:var(--accent);font-size:.82rem;font-weight:700;cursor:pointer">+ Add Category</button>
   <div class="budget-total budget-grid" style="padding:16px">
     <span style="font-size:.9rem;font-weight:700;color:var(--accent)">TOTAL</span>
     <span style="font-size:.9rem;font-weight:700;color:var(--accent);text-align:right">₱${totalEst.toLocaleString()}</span>
     <span style="font-size:.9rem;font-weight:700;color:var(--green);text-align:right">${totalAct>0?'₱'+totalAct.toLocaleString():'—'}</span>
-  </div>`;
+  </div>
+  ${totalAct > 0 ? `
+  <div style="margin-top:8px;padding:10px 16px;border-radius:12px;text-align:center;background:${totalAct<=totalEst?'rgba(123,158,107,.1)':'rgba(255,80,80,.08)'};border:1px solid ${totalAct<=totalEst?'rgba(123,158,107,.3)':'rgba(255,80,80,.25)'}">
+    <span style="font-size:.8rem;font-weight:700;color:${totalAct<=totalEst?'var(--green)':'#e88'}">
+      ${totalAct<=totalEst ? `🎉 You saved ₱${(totalEst-totalAct).toLocaleString()}!` : `⚠️ Over budget by ₱${(totalAct-totalEst).toLocaleString()}`}
+    </span>
+  </div>` : ''}`;
 }
 
 // ─── NOTES ───────────────────────────────────────────────────────────────────
@@ -803,12 +811,16 @@ function renderModal() {
       <div class="field-wrap"><label class="field-label">Start Date</label><input class="field-input" id="m-mstart" type="date" value="${meta.startDate || ''}" style="color-scheme:dark"/></div>
       <div class="field-wrap"><label class="field-label">End Date</label><input class="field-input" id="m-mend" type="date" value="${meta.endDate || ''}" style="color-scheme:dark"/></div>
       <button class="save-btn" id="m-save-editmeta">Save Trip Details</button>`;
+  } else if (type === "editBudgetCat") {
+    inner = `
+      <div class="field-wrap"><label class="field-label">Category Name</label><input class="field-input" id="m-budgetcat" value="${payload.category}"/></div>
+      <button class="save-btn" id="m-save-budgetcat">Save</button>`;
   }
   return `
   <div class="overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">${type==="editStop"?"Edit Stop":type==="addStop"?"Add Stop":type==="editPack"?"Edit Item":type==="addNote"?"Add Note":type==="editFood"?"Edit Place":type==="addFood"?"Add Place":type==="addDay"?"Add Day":type==="editDay"?"Edit Day":type==="editMeta"?"Trip Details":"Edit Note"}</span>
+        <span class="modal-title">${type==="editStop"?"Edit Stop":type==="addStop"?"Add Stop":type==="editPack"?"Edit Item":type==="addNote"?"Add Note":type==="editFood"?"Edit Place":type==="addFood"?"Add Place":type==="addDay"?"Add Day":type==="editDay"?"Edit Day":type==="editMeta"?"Trip Details":type==="editBudgetCat"?"Edit Category":"Edit Note"}</span>
         <button style="background:none;border:none;color:#444;font-size:1.1rem" id="modal-close">✕</button>
       </div>
       ${inner}
@@ -988,6 +1000,31 @@ function bindAll() {
     };
   });
 
+  // add budget category
+  const addBudgetBtn = document.getElementById("add-budget");
+  if (addBudgetBtn) addBudgetBtn.onclick = ()=>{
+    save({...data, budget:[...data.budget, {id:"b"+uid(), category:"New Category", estimate:0, actual:""}]});
+  };
+
+  // delete budget category
+  document.querySelectorAll("[data-delbudget]").forEach(b => b.onclick = ()=>{
+    save({...data, budget:data.budget.filter(x=>x.id!==b.dataset.delbudget)});
+  });
+
+  // edit budget category name
+  document.querySelectorAll("[data-editbudgetcat]").forEach(b => b.onclick = ()=>{
+    const item = data.budget.find(x=>x.id===b.dataset.editbudgetcat);
+    state.modal = {type:"editBudgetCat", payload:{...item}};
+    render();
+  });
+
+  // modal save budget category
+  const saveBudgetCat = document.getElementById("m-save-budgetcat");
+  if (saveBudgetCat) saveBudgetCat.onclick = ()=>{
+    const updated = {...state.modal.payload, category:document.getElementById("m-budgetcat").value};
+    state.modal=null; save({...data, budget:data.budget.map(x=>x.id!==updated.id?x:updated)});
+  };
+
   // add note
   const addNoteBtn = document.getElementById("add-note");
   if (addNoteBtn) addNoteBtn.onclick = ()=>{
@@ -1098,6 +1135,36 @@ function bindAll() {
   if (saveAddNote) saveAddNote.onclick = ()=>{
     const nn = {id:"n"+uid(), icon:document.getElementById("m-nicon").value, title:document.getElementById("m-ntitle").value, text:document.getElementById("m-ntext").value};
     state.modal=null; save({...data, notes:[...data.notes, nn]});
+  };
+
+  // modal add day
+  const saveAddDay = document.getElementById("m-save-addday");
+  if (saveAddDay) saveAddDay.onclick = ()=>{
+    const isoDate = document.getElementById("m-daydate").value;
+    const nd = {
+      id: data.days.length + 1,
+      date: isoToDisplayDate(isoDate) || isoDate,
+      theme: document.getElementById("m-daytheme").value || "Day",
+      emoji: document.getElementById("m-dayemoji").value || "📅",
+      color: document.getElementById("m-daycolor").value,
+      stops: []
+    };
+    state.modal=null; save({...data, days:[...data.days, nd]});
+  };
+
+  // modal edit day
+  const saveEditDay = document.getElementById("m-save-editday");
+  if (saveEditDay) saveEditDay.onclick = ()=>{
+    const d = state.modal.payload;
+    const updated = {...d, date:document.getElementById("m-daydate").value, theme:document.getElementById("m-daytheme").value, emoji:document.getElementById("m-dayemoji").value, color:document.getElementById("m-daycolor").value};
+    state.modal=null; save({...data, days:data.days.map(x=>x.id!==updated.id?x:updated)});
+  };
+
+  // modal edit meta
+  const saveEditMeta = document.getElementById("m-save-editmeta");
+  if (saveEditMeta) saveEditMeta.onclick = ()=>{
+    meta = {...meta, title:document.getElementById("m-mtitle").value, destination:document.getElementById("m-mdest").value, startDate:document.getElementById("m-mstart").value, endDate:document.getElementById("m-mend").value};
+    state.modal=null; save(data);
   };
 
   // modal save edit food
