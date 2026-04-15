@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Travel Itineraries</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/tokens.css" />
+<link rel="stylesheet" href="assets/css/base.css" />
+<link rel="stylesheet" href="assets/css/landing.css" />
+<link rel="stylesheet" href="assets/css/components.css" />
+</head>
+<body>
+
+<button class="landing-theme-toggle" id="theme-toggle" title="Toggle theme">☀️</button>
+
+<div class="landing-wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Travel Itineraries</div>
+    <h1 class="hero-title">Where to Next?</h1>
+    <p class="hero-sub">Day-by-day guides for every trip — planned with love.</p>
+  </div>
+
+  <!-- FIREBASE BANNER -->
+  <div id="fb-banner" class="fb-setup-banner" style="display:none">
+    <span>🔌 Connect Firebase to create and manage your itineraries.</span>
+    <button id="fb-banner-btn">Set up →</button>
+    <button id="fb-banner-dismiss">✕</button>
+  </div>
+
+  <!-- TRIP GRID -->
+  <div class="section-label">Our trips</div>
+  <div class="trip-grid" id="trip-grid"></div>
+
+  <!-- FOOTER -->
+  <div class="landing-footer">
+    Made with ❤️ &nbsp;·&nbsp; More adventures coming soon
+  </div>
+
+</div>
+
+<!-- Firebase Config Modal -->
+<div id="fb-config-modal" class="overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Connect Firebase</span>
+      <button style="background:none;border:none;color:#444;font-size:1.1rem;cursor:pointer" id="fb-config-close">✕</button>
+    </div>
+    <p style="color:var(--text-dim);font-size:.85rem;margin-bottom:16px;line-height:1.6">Enter your Firebase credentials to sync itineraries across devices.</p>
+    <div class="field-wrap"><label class="field-label">API Key</label><input class="field-input" id="lp-fb-apikey" value="AIzaSyADGFHy9mzr1-9SajpWDL4lXBefZ9ZTFP4" placeholder="AIzaSy..." /></div>
+    <div class="field-wrap"><label class="field-label">Database URL</label><input class="field-input" id="lp-fb-dburl" value="https://kaohsiung-itinerary-default-rtdb.asia-southeast1.firebasedatabase.app/" placeholder="https://xxx.firebaseio.com" /></div>
+    <button class="save-btn" id="lp-fb-connect">Connect & Load →</button>
+  </div>
+</div>
+
+<!-- Create New Itinerary Modal -->
+<div id="create-modal" class="overlay" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">New Itinerary</span>
+      <button style="background:none;border:none;color:#444;font-size:1.1rem;cursor:pointer" id="create-modal-close">✕</button>
+    </div>
+    <div class="field-wrap"><label class="field-label">Title</label><input class="field-input" id="c-title" placeholder="e.g. Tokyo Trip" /></div>
+    <div class="field-wrap"><label class="field-label">Destination</label><input class="field-input" id="c-dest" placeholder="e.g. Tokyo, Japan" /></div>
+    <div class="field-wrap"><label class="field-label">Cover Emoji</label><input class="field-input" id="c-emoji" placeholder="🇯🇵" maxlength="4" /></div>
+    <div class="field-wrap"><label class="field-label">Start Date</label><input class="field-input" type="date" id="c-start" /></div>
+    <div class="field-wrap"><label class="field-label">End Date</label><input class="field-input" type="date" id="c-end" /></div>
+    <div class="field-wrap"><label class="field-label">Tags (comma-separated)</label><input class="field-input" id="c-tags" placeholder="e.g. Temples, Sushi, Anime" /></div>
+    <button class="save-btn" id="c-create">Create Itinerary →</button>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, set, get, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ─── STATIC FALLBACK ─────────────────────────────────────────────────────────
+const TRIPS_FALLBACK = [
+  {
+    flag: "🇹🇼", country: "Taiwan", city: "Kaohsiung",
+    dates: "July 24–28, 2025", days: 5, route: "MNL → KHH",
+    tags: ["Night Markets", "Temples", "Art District", "Seafood"],
+    status: "upcoming", href: "kaohsiung/"
+  }
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let db = null;
+const fbConfig = JSON.parse(localStorage.getItem("fb_config") || "null");
+
+// ─── THEME ────────────────────────────────────────────────────────────────────
+const savedTheme = localStorage.getItem("theme") || "dark";
+if (savedTheme === "light") document.body.classList.add("light-mode");
+const themeBtn = document.getElementById("theme-toggle");
+themeBtn.textContent = savedTheme === "light" ? "🌙" : "☀️";
+themeBtn.onclick = () => {
+  const isLight = document.body.classList.toggle("light-mode");
+  localStorage.setItem("theme", isLight ? "light" : "dark");
+  themeBtn.textContent = isLight ? "🌙" : "☀️";
+};
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function formatDateRange(start, end) {
+  if (!start) return "";
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const s = new Date(start + "T00:00:00");
+  const e = end ? new Date(end + "T00:00:00") : null;
+  if (!e || s.getMonth() === e.getMonth()) {
+    return `${months[s.getMonth()]} ${s.getDate()}${e ? "–" + e.getDate() : ""}, ${s.getFullYear()}`;
+  }
+  return `${months[s.getMonth()]} ${s.getDate()} – ${months[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
+}
+
+// ─── RENDER TRIPS ─────────────────────────────────────────────────────────────
+function renderTrips(list) {
+  const grid = document.getElementById("trip-grid");
+
+  const cards = list.map(({ id, meta: m, isFallback, href }) => `
+    <a class="trip-card" href="${isFallback ? href : `app/?id=${id}`}">
+      <div class="trip-card-top">
+        <span class="trip-flag">${m.coverEmoji || m.flag || "✈️"}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="trip-status-badge ${m.status === "past" ? "past" : "upcoming"}">${m.status === "past" ? "Past trip" : "Upcoming"}</span>
+          ${!isFallback ? `<button class="trip-delete-btn" data-delete-id="${id}" title="Remove itinerary">✕</button>` : ""}
+        </div>
+      </div>
+      <div class="trip-country">${m.destination || m.country || ""}</div>
+      <div class="trip-city">${m.title || m.city || ""}</div>
+      <div class="trip-meta">
+        <span class="trip-meta-item">📅 ${m.startDate ? formatDateRange(m.startDate, m.endDate) : (m.dates || "")}</span>
+        <span class="trip-meta-item dot">·</span>
+        <span class="trip-meta-item">🗓 ${m.daysCount || m.days || 0} days</span>
+        ${m.route ? `<span class="trip-meta-item dot">·</span><span class="trip-meta-item">✈️ ${m.route}</span>` : ""}
+      </div>
+      <div class="trip-tags">
+        ${(m.tags || []).map(tag => `<span class="trip-tag">${tag}</span>`).join("")}
+      </div>
+      <div class="trip-cta">
+        <span class="trip-cta-text">View Itinerary</span>
+        <span class="trip-cta-arrow">→</span>
+      </div>
+    </a>
+  `).join("");
+
+  const newCard = db
+    ? `<button class="trip-card-new" id="create-new-btn">
+        <div class="trip-card-new-icon">＋</div>
+        <div class="trip-card-new-text">
+          <strong>New Itinerary</strong>
+          Plan your next adventure
+        </div>
+       </button>`
+    : `<div class="trip-card-new">
+        <div class="trip-card-new-icon">✈️</div>
+        <div class="trip-card-new-text">
+          <strong>More trips coming</strong>
+          Connect Firebase to create new itineraries
+        </div>
+       </div>`;
+
+  grid.innerHTML = cards + newCard;
+
+  const createBtn = document.getElementById("create-new-btn");
+  if (createBtn) createBtn.onclick = openCreateModal;
+
+  document.querySelectorAll(".trip-delete-btn").forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.deleteId;
+      if (confirm("Remove this itinerary? This cannot be undone.")) {
+        remove(ref(db, "itineraries/" + id));
+      }
+    };
+  });
+}
+
+// ─── FIREBASE ─────────────────────────────────────────────────────────────────
+async function seedKaohsiung(database) {
+  try {
+    const snap = await get(ref(database, "itineraries/kaohsiung-2025"));
+    if (snap.exists()) return;
+    const { DEFAULT } = await import("./kaohsiung/data.js");
+    await set(ref(database, "itineraries/kaohsiung-2025"), {
+      meta: {
+        title: "Kaohsiung Trip",
+        destination: "Kaohsiung, Taiwan",
+        coverEmoji: "🇹🇼",
+        startDate: "2025-07-24",
+        endDate: "2025-07-28",
+        daysCount: 5,
+        route: "MNL → KHH",
+        tags: ["Night Markets", "Temples", "Art District", "Seafood"],
+        status: "upcoming",
+        createdAt: 1721779200000
+      },
+      days: DEFAULT.days,
+      packing: DEFAULT.packing,
+      budget: DEFAULT.budget,
+      food: DEFAULT.food,
+      notes: DEFAULT.notes
+    });
+  } catch(e) {
+    console.warn("Seed failed:", e);
+  }
+}
+
+function initLandingFirebase(config) {
+  try {
+    const app = initializeApp(config);
+    db = getDatabase(app);
+    const itinRef = ref(db, "itineraries");
+    onValue(itinRef, snap => {
+      if (!snap.exists()) {
+        seedKaohsiung(db);
+        renderTrips([]);
+        return;
+      }
+      const raw = snap.val();
+      const list = Object.entries(raw)
+        .map(([id, val]) => ({ id, meta: val.meta || {} }))
+        .sort((a, b) => (a.meta.createdAt || 0) - (b.meta.createdAt || 0));
+      renderTrips(list);
+    }, err => {
+      console.error("Firebase error:", err);
+      renderTrips(TRIPS_FALLBACK.map(t => ({ id: null, meta: t, isFallback: true, href: t.href })));
+    });
+  } catch(e) {
+    console.error("Firebase init error:", e);
+    renderTrips(TRIPS_FALLBACK.map(t => ({ id: null, meta: t, isFallback: true, href: t.href })));
+  }
+}
+
+// ─── CREATE MODAL ─────────────────────────────────────────────────────────────
+function openCreateModal() {
+  document.getElementById("create-modal").style.display = "flex";
+}
+
+document.getElementById("create-modal-close").onclick = () => {
+  document.getElementById("create-modal").style.display = "none";
+};
+document.getElementById("create-modal").onclick = (e) => {
+  if (e.target === document.getElementById("create-modal")) {
+    document.getElementById("create-modal").style.display = "none";
+  }
+};
+document.getElementById("c-create").onclick = () => {
+  const title = document.getElementById("c-title").value.trim();
+  const dest = document.getElementById("c-dest").value.trim();
+  const emoji = document.getElementById("c-emoji").value.trim() || "✈️";
+  const start = document.getElementById("c-start").value;
+  const end = document.getElementById("c-end").value;
+  const tagsRaw = document.getElementById("c-tags").value;
+
+  if (!title || !dest) { alert("Title and destination are required."); return; }
+
+  const tags = tagsRaw.split(",").map(t => t.trim()).filter(Boolean);
+  const s = start ? new Date(start + "T00:00:00") : null;
+  const e = end ? new Date(end + "T00:00:00") : null;
+  const daysCount = s && e ? Math.max(1, Math.round((e - s) / 86400000) + 1) : 1;
+  const status = s && s > new Date() ? "upcoming" : "past";
+
+  // Generate one day entry per day of the trip
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const DAY_COLORS  = ["#C8956C","#7B9E6B","#5B8FA8","#9B7BA8","#C8956C","#7B9E6B","#5B8FA8"];
+  const DAY_EMOJIS  = ["📍","🗺","🏙","🍜","🎭","🌅","🛫"];
+  const days = [];
+  for (let i = 0; i < daysCount; i++) {
+    const d = s ? new Date(s.getTime() + i * 86400000) : null;
+    const dateStr = d
+      ? `${MONTH_NAMES[d.getMonth()]} ${d.getDate()} (${DAY_NAMES[d.getDay()]})`
+      : `Day ${i + 1}`;
+    days.push({
+      id: i + 1,
+      date: dateStr,
+      theme: `Day ${i + 1}`,
+      emoji: DAY_EMOJIS[i % DAY_EMOJIS.length],
+      color: DAY_COLORS[i % DAY_COLORS.length],
+      stops: []
+    });
+  }
+
+  // Default packing list
+  const packing = [
+    {id:"p1",  item:"Passport + travel docs",          done:false},
+    {id:"p2",  item:"Travel insurance",                done:false},
+    {id:"p3",  item:"Local currency (cash)",           done:false},
+    {id:"p4",  item:"Credit / debit card",             done:false},
+    {id:"p5",  item:"Phone + charger",                 done:false},
+    {id:"p6",  item:"Power bank",                      done:false},
+    {id:"p7",  item:"Universal travel adapter",        done:false},
+    {id:"p8",  item:"Earphones / headphones",          done:false},
+    {id:"p9",  item:"Clothes (tops, bottoms, undies)", done:false},
+    {id:"p10", item:"Comfortable walking shoes",       done:false},
+    {id:"p11", item:"Light jacket / hoodie",           done:false},
+    {id:"p12", item:"Toiletries (toothbrush, etc.)",   done:false},
+    {id:"p13", item:"Deodorant",                       done:false},
+    {id:"p14", item:"Sunscreen",                       done:false},
+    {id:"p15", item:"Reusable water bottle",           done:false},
+    {id:"p16", item:"Medicines & first aid",           done:false},
+    {id:"p17", item:"Snacks for travel",               done:false},
+    {id:"p18", item:"Small day bag / backpack",        done:false},
+  ];
+
+  // Default budget categories
+  const budget = [
+    {id:"b1", category:"Flights (round trip)", estimate:0, actual:""},
+    {id:"b2", category:"Accommodation",        estimate:0, actual:""},
+    {id:"b3", category:"Daily food",           estimate:0, actual:""},
+    {id:"b4", category:"Transportation",       estimate:0, actual:""},
+    {id:"b5", category:"Attractions & activities", estimate:0, actual:""},
+    {id:"b6", category:"Shopping & souvenirs", estimate:0, actual:""},
+    {id:"b7", category:"Contingency / misc",   estimate:0, actual:""},
+  ];
+
+  const id = "itin-" + Math.random().toString(36).slice(2, 10);
+  const itinerary = {
+    meta: { title, destination: dest, coverEmoji: emoji, startDate: start, endDate: end, daysCount, route: "", tags, status, createdAt: Date.now() },
+    days, packing, budget, food: [], notes: []
+  };
+
+  document.getElementById("c-create").textContent = "Creating...";
+  document.getElementById("c-create").disabled = true;
+
+  set(ref(db, "itineraries/" + id), itinerary)
+    .then(() => { location.href = "app/?id=" + id; })
+    .catch(err => {
+      alert("Could not create itinerary: " + err.message);
+      document.getElementById("c-create").textContent = "Create Itinerary →";
+      document.getElementById("c-create").disabled = false;
+    });
+};
+
+// ─── FIREBASE CONFIG FORM ─────────────────────────────────────────────────────
+document.getElementById("fb-banner-btn").onclick = () => {
+  document.getElementById("fb-config-modal").style.display = "flex";
+};
+document.getElementById("fb-banner-dismiss").onclick = () => {
+  document.getElementById("fb-banner").style.display = "none";
+};
+document.getElementById("fb-config-close").onclick = () => {
+  document.getElementById("fb-config-modal").style.display = "none";
+};
+document.getElementById("fb-config-modal").onclick = (e) => {
+  if (e.target === document.getElementById("fb-config-modal")) {
+    document.getElementById("fb-config-modal").style.display = "none";
+  }
+};
+document.getElementById("lp-fb-connect").onclick = () => {
+  const apiKey = document.getElementById("lp-fb-apikey").value.trim();
+  const databaseURL = document.getElementById("lp-fb-dburl").value.trim();
+  if (!apiKey || !databaseURL) { alert("Please fill in both fields."); return; }
+  const config = { apiKey, databaseURL, authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: "" };
+  localStorage.setItem("fb_config", JSON.stringify(config));
+  document.getElementById("fb-config-modal").style.display = "none";
+  document.getElementById("fb-banner").style.display = "none";
+  // Show loading while Firebase initializes
+  document.getElementById("trip-grid").innerHTML = `<div class="trip-card-skeleton"></div><div class="trip-card-skeleton"></div>`;
+  initLandingFirebase(config);
+};
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+if (fbConfig) {
+  document.getElementById("trip-grid").innerHTML = `<div class="trip-card-skeleton"></div><div class="trip-card-skeleton"></div>`;
+  initLandingFirebase(fbConfig);
+} else {
+  renderTrips(TRIPS_FALLBACK.map(t => ({ id: null, meta: t, isFallback: true, href: t.href })));
+  document.getElementById("fb-banner").style.display = "flex";
+}
+</script>
+</body>
+</html>
