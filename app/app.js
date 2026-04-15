@@ -386,11 +386,13 @@ function initFoodMap(foodList) {
 
 function getCountdown() {
   if (!meta.startDate) return "";
-  const tripDate = new Date(meta.startDate + "T00:00:00");
   const now = new Date();
-  const diff = tripDate - now;
-  if (diff <= 0) return "Trip is live! ✈️";
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tripStart = new Date(meta.startDate + "T00:00:00");
+  const tripEnd = meta.endDate ? new Date(meta.endDate + "T00:00:00") : tripStart;
+  if (today > tripEnd) return "";
+  if (today >= tripStart) return "Trip is live! ✈️";
+  const days = Math.round((tripStart - today) / (1000 * 60 * 60 * 24));
   return `${days} days until departure 🛫`;
 }
 

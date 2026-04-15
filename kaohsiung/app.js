@@ -184,11 +184,13 @@ function initFoodMap(foodList) {
 }
 
 function getCountdown() {
-  const tripDate = new Date("2025-07-24T00:00:00");
+  const tripStart = new Date("2025-07-24T00:00:00");
+  const tripEnd = new Date("2025-07-28T00:00:00");
   const now = new Date();
-  const diff = tripDate - now;
-  if (diff <= 0) return "Trip is live! ✈️";
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (today > tripEnd) return "";
+  if (today >= tripStart) return "Trip is live! ✈️";
+  const days = Math.round((tripStart - today) / (1000 * 60 * 60 * 24));
   return `${days} days until departure 🛫`;
 }
 
@@ -287,7 +289,7 @@ function mainApp() {
     <h1 class="header-title">Kaohsiung, Taiwan</h1>
     <p class="header-sub">July 24–28, 2025 · 5 Days</p>
     <div class="status-bar">
-      <span class="badge countdown">✨ ${getCountdown()}</span>
+      ${getCountdown() ? `<span class="badge countdown">✨ ${getCountdown()}</span>` : ''}
       ${state.flash ? `<span class="badge ${state.flashErr?'red':'green'}">${state.flash}</span>` : ''}
       ${state.connected ? '<span class="badge green">🟢 Live</span>' : '<span class="badge">💾 Local</span>'}
       <span class="badge">🎒 ${packDone}/${data.packing.length}</span>
