@@ -17,6 +17,7 @@ let state = {
   modal: null,        // { type, payload }
   foodFilter: "all",
   foodSearch: "",
+  foodUntriedOnly: false,
   mapView: false,
   mapInstance: null,
   flash: "",
@@ -419,12 +420,13 @@ function render() {
   app.innerHTML = mainApp();
   bindAll();
 
-  if (state.tab === "notes" && state.mapView) {
+  if (state.tab === "food" && state.mapView) {
     const filter = state.foodFilter || "all";
     const search = (state.foodSearch || "").toLowerCase();
     let filtered = data.food;
     if (filter !== "all") filtered = filtered.filter(p => p.category === filter);
     if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search) || p.desc.toLowerCase().includes(search) || p.tag.toLowerCase().includes(search));
+    if (state.foodUntriedOnly) filtered = filtered.filter(p => !p.visited);
     initFoodMap(filtered);
   }
 
@@ -504,7 +506,7 @@ function mainApp() {
     </button>
     <div class="header-eyebrow">${meta.eyebrow || "Travel Itinerary"}</div>
     <h1 class="header-title">${meta.destination || meta.title || "Loading..."}</h1>
-    <p class="header-sub">${formatTripDates(meta)} <button id="edit-meta-btn" title="Edit trip details" style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--muted);padding:0 4px;vertical-align:middle">✏️</button></p>
+    <p class="header-sub">${formatTripDates(meta)} <button id="edit-meta-btn" title="Edit trip details" style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--muted);padding:0 4px;vertical-align:middle">✏️</button> <button id="print-btn" title="Print / Save as PDF" style="background:none;border:none;cursor:pointer;font-size:.8rem;color:var(--muted);padding:0 4px;vertical-align:middle">🖨️</button></p>
     <div class="status-bar">
       ${getCountdown() ? `<span class="badge countdown">✨ ${getCountdown()}</span>` : ""}
       ${state.flash ? `<span class="badge ${state.flashErr?'red':'green'}">${state.flash}</span>` : ''}
@@ -515,7 +517,7 @@ function mainApp() {
   </div>
 
   <div class="tabs">
-    ${[["itinerary","🗓 Itinerary"],["packing","🎒 Packing"],["budget","💰 Budget"],["notes","🍜 Food & Cafes"]]
+    ${[["itinerary","🗓 Itinerary"],["packing","🎒 Packing"],["budget","💰 Budget"],["food","🍜 Food & Cafes"],["notes","📝 Notes"]]
       .map(([k,l])=>`<button class="tab-btn${state.tab===k?' active':''}" data-tab="${k}">${l}</button>`).join("")}
   </div>
 
@@ -523,7 +525,8 @@ function mainApp() {
     ${state.tab==="itinerary" ? renderItinerary() : ""}
     ${state.tab==="packing"   ? renderPacking()   : ""}
     ${state.tab==="budget"    ? renderBudget()     : ""}
-    ${state.tab==="notes"     ? renderNotes()      : ""}
+    ${state.tab==="food"      ? renderFood()       : ""}
+    ${state.tab==="notes"     ? renderTripNotes()  : ""}
   </div>
 
   ${state.modal ? renderModal() : ""}
@@ -556,7 +559,7 @@ function renderItinerary() {
       <div class="day-icon" style="background:${day.color}18;border:1px solid ${day.color}44">${day.emoji}</div>
       <div style="flex:1">
         <div class="day-label" style="color:${day.color}">Day ${day.id} · ${day.date}</div>
-        <div class="day-title">${day.theme}</div>
+        <div class="day-title">${day.theme}${day.stops.reduce((s,x)=>s+(+x.cost||0),0)>0?` <span style="font-size:.72rem;color:var(--accent);font-weight:700">₱${day.stops.reduce((s,x)=>s+(+x.cost||0),0).toLocaleString()}</span>`:''}</div>
       </div>
       <a href="${getDayMapUrl(day)}" target="_blank" class="icon-btn" style="width:auto;padding:0 12px;gap:6px;text-decoration:none;border-color:${day.color}44;color:${day.color};font-weight:700" title="View Day Route">
         <span>🗺 Map</span>
@@ -575,7 +578,10 @@ function renderItinerary() {
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
             <div style="flex:1">
               <span style="font-size:.63rem;color:${day.color};font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-right:7px">${s.time}</span>
-              <span style="font-size:.88rem;font-weight:700;text-decoration:${s.checked?'line-through':'none'}">${s.place}</span>
+              <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+                <span style="font-size:.88rem;font-weight:700;text-decoration:${s.checked?'line-through':'none'}">${s.place}</span>
+                ${s.cost ? `<span style="font-size:.7rem;color:var(--accent);font-weight:700">₱${(+s.cost).toLocaleString()}</span>` : ""}
+              </div>
               <p style="margin:3px 0 0;font-size:.77rem;color:var(--text-dim);line-height:1.5">${s.note}</p>
             </div>
             <div class="stop-actions">
@@ -593,24 +599,43 @@ function renderItinerary() {
 }
 
 // ─── PACKING ─────────────────────────────────────────────────────────────────
+const PACK_CATS = ["Documents","Clothing","Electronics","Toiletries","Other"];
 function renderPacking() {
   const done = data.packing.filter(p=>p.done).length;
   const total = data.packing.length;
+  const grouped = {};
+  PACK_CATS.forEach(c => { grouped[c] = []; });
+  data.packing.forEach(p => {
+    const cat = PACK_CATS.includes(p.category) ? p.category : "Other";
+    grouped[cat].push(p);
+  });
+  const catHtml = PACK_CATS
+    .filter(c => grouped[c].length > 0)
+    .map(c => {
+      const catDone = grouped[c].filter(p=>p.done).length;
+      return `<div style="margin-bottom:16px">
+        <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;padding:2px 4px;font-weight:700">${c} · ${catDone}/${grouped[c].length}</div>
+        ${grouped[c].map(p=>`
+        <div class="pack-item${p.done?' done':''}" data-togglepack="${p.id}">
+          <div class="checkbox${p.done?' checked':''}">${p.done?"✓":""}</div>
+          <span style="flex:1;font-size:.86rem;color:${p.done?'var(--muted)':'var(--text)'};text-decoration:${p.done?'line-through':'none'}">${p.item}</span>
+          <div class="stop-actions" style="flex-shrink:0">
+            <button class="icon-btn" data-editpack="${p.id}" title="Edit">✏️</button>
+            <button class="icon-btn del" data-delpack="${p.id}" title="Delete">✕</button>
+          </div>
+        </div>`).join("")}
+      </div>`;
+    }).join("");
   return `
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
     <h2 style="font-family:'Playfair Display',serif;font-size:1.15rem">Packing Checklist</h2>
-    <span style="font-size:.8rem;color:var(--accent)">${done}/${total} done</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:.8rem;color:var(--accent)">${done}/${total} done</span>
+      ${done > 0 ? `<button id="reset-packing" style="padding:4px 12px;background:transparent;border:1px solid rgba(200,149,108,.3);border-radius:8px;color:var(--muted);font-size:.72rem;cursor:pointer">Reset all</button>` : ""}
+    </div>
   </div>
   <div class="progress-bar"><div class="progress-fill" style="width:${Math.round((done/(total||1))*100)}%"></div></div>
-  ${data.packing.map(p=>`
-  <div class="pack-item${p.done?' done':''}" data-togglepack="${p.id}">
-    <div class="checkbox${p.done?' checked':''}">${p.done?"✓":""}</div>
-    <span style="flex:1;font-size:.86rem;color:${p.done?'var(--muted)':'var(--text)'};text-decoration:${p.done?'line-through':'none'}">${p.item}</span>
-    <div class="stop-actions" style="flex-shrink:0">
-      <button class="icon-btn" data-editpack="${p.id}" title="Edit">✏️</button>
-      <button class="icon-btn del" data-delpack="${p.id}" title="Delete">✕</button>
-    </div>
-  </div>`).join("")}
+  <div style="margin-top:14px">${catHtml}</div>
   <button style="margin-top:10px;width:100%;padding:9px;background:transparent;border:1px dashed rgba(200,149,108,.3);border-radius:9px;color:var(--accent);font-size:.8rem" id="add-pack">+ Add item</button>`;
 }
 
@@ -648,8 +673,8 @@ function renderBudget() {
   </div>` : ''}`;
 }
 
-// ─── NOTES ───────────────────────────────────────────────────────────────────
-function renderNotes() {
+// ─── FOOD & CAFES ────────────────────────────────────────────────────────────
+function renderFood() {
   const filter = state.foodFilter || "all";
   const search = (state.foodSearch || "").toLowerCase();
   let filtered = data.food;
@@ -660,6 +685,7 @@ function renderNotes() {
     p.desc.toLowerCase().includes(search) ||
     p.tag.toLowerCase().includes(search)
   );
+  if (state.foodUntriedOnly) filtered = filtered.filter(p => !p.visited);
 
   const catIcon = {restaurant:"🍽", cafe:"☕", nightmarket:"🏮"};
   const catLabel = {restaurant:"Restaurants", cafe:"Cafes", nightmarket:"Night Markets"};
@@ -667,7 +693,7 @@ function renderNotes() {
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:10px;flex-wrap:wrap">
     <h2 style="font-family:'Playfair Display',serif;font-size:1.3rem;flex:1">Food & Cafes</h2>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="toggle-map-view" style="padding:6px 16px;background:rgba(91,143,168,.15);border:1px solid rgba(91,143,168,.4);border-radius:10px;color:var(--blue);font-size:.85rem;font-weight:700;display:flex;align-items:center;gap:6px">
         <span>${state.mapView ? "📋 Show List" : "📍 Show Map"}</span>
       </button>
@@ -685,6 +711,9 @@ function renderNotes() {
     <button class="day-btn${filter===k?' active':''}" style="${filter===k?'border-color:var(--accent);background:rgba(200,149,108,.15);color:var(--accent)':''}" data-foodfilter="${k}">
       ${k==="all"?"🗺 All":catIcon[k]+" "+catLabel[k]}
     </button>`).join("")}
+    <button id="food-untried" class="day-btn${state.foodUntriedOnly?' active':''}" style="${state.foodUntriedOnly?'border-color:#7B9E6B;background:rgba(123,158,107,.15);color:var(--green)':''}">
+      ✓ Untried only
+    </button>
   </div>
 
   ${state.mapView ? `
@@ -692,11 +721,12 @@ function renderNotes() {
 
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-bottom:24px; display:${state.mapView ? 'none' : 'grid'}">
     ${filtered.length ? filtered.map(p=>`
-    <div class="note-card">
+    <div class="note-card" style="${p.visited?'opacity:.65':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <span style="font-size:1.4rem">${catIcon[p.category]}</span>
-        <div style="display:flex;gap:6px;align-items:center">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
           <span style="font-size:.65rem;padding:3px 10px;border-radius:12px;background:rgba(200,149,108,.15);color:var(--accent);border:1px solid rgba(200,149,108,.25);font-weight:700">${p.tag}</span>
+          <button data-togglevisited="${p.id}" style="padding:3px 8px;border-radius:8px;font-size:.65rem;font-weight:700;background:${p.visited?'rgba(123,158,107,.2)':'transparent'};border:1px solid ${p.visited?'rgba(123,158,107,.4)':'var(--border)'};color:${p.visited?'var(--green)':'var(--muted)'};cursor:pointer">${p.visited?"✓ Tried":"Try it"}</button>
           <button class="icon-btn" data-editfood="${p.id}">✏️</button>
           <button class="icon-btn del" data-delfood="${p.id}">✕</button>
         </div>
@@ -713,6 +743,34 @@ function renderNotes() {
   </div>`;
 }
 
+// ─── TRIP NOTES ──────────────────────────────────────────────────────────────
+function renderTripNotes() {
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <h2 style="font-family:'Playfair Display',serif;font-size:1.3rem">Trip Notes</h2>
+    <button style="padding:6px 16px;background:rgba(200,149,108,.15);border:1px solid rgba(200,149,108,.4);border-radius:10px;color:var(--accent);font-size:.85rem;font-weight:700" id="add-note">+ Add note</button>
+  </div>
+  ${data.notes.length === 0 ? `
+    <div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <div style="font-size:2.5rem;margin-bottom:16px">📝</div>
+      <p style="font-size:.9rem">No notes yet. Jot down ideas, reminders, or anything worth remembering.</p>
+    </div>` :
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+    ${data.notes.map(n=>`
+    <div class="note-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <span style="font-size:1.5rem">${n.icon || "📝"}</span>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" data-editnote="${n.id}">✏️</button>
+          <button class="icon-btn del" data-delnote="${n.id}">✕</button>
+        </div>
+      </div>
+      <div style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:8px">${n.title}</div>
+      <div style="font-size:.82rem;color:var(--text-dim);line-height:1.65;white-space:pre-wrap">${n.text}</div>
+    </div>`).join("")}
+    </div>`}`;
+}
+
 // ─── MODALS ──────────────────────────────────────────────────────────────────
 function renderModal() {
   const { type, payload } = state.modal;
@@ -724,6 +782,7 @@ function renderModal() {
       <div class="field-wrap"><label class="field-label">Place</label><input class="field-input" id="m-place" value="${s.place}"/></div>
       <div class="field-wrap"><label class="field-label">Notes</label><textarea class="field-input" id="m-note" rows="3">${s.note}</textarea></div>
       <div class="field-wrap"><label class="field-label">Icon</label><input class="field-input" id="m-icon" value="${s.icon}"/></div>
+      <div class="field-wrap"><label class="field-label">Cost ₱ (optional)</label><input class="field-input" type="number" id="m-cost" value="${s.cost || ''}" placeholder="0"/></div>
       <button class="save-btn" id="m-save-stop">Save changes</button>`;
   } else if (type === "addStop") {
     inner = `
@@ -731,12 +790,27 @@ function renderModal() {
       <div class="field-wrap"><label class="field-label">Place</label><input class="field-input" id="m-place" value=""/></div>
       <div class="field-wrap"><label class="field-label">Notes</label><textarea class="field-input" id="m-note" rows="3"></textarea></div>
       <div class="field-wrap"><label class="field-label">Icon</label><input class="field-input" id="m-icon" value="📍"/></div>
+      <div class="field-wrap"><label class="field-label">Cost ₱ (optional)</label><input class="field-input" type="number" id="m-cost" value="" placeholder="0"/></div>
       <button class="save-btn" id="m-save-addstop">Add to itinerary</button>`;
   } else if (type === "editPack") {
     const p = payload;
     inner = `
       <div class="field-wrap"><label class="field-label">Item</label><input class="field-input" id="m-pitem" value="${p.item}"/></div>
+      <div class="field-wrap"><label class="field-label">Category</label>
+        <select class="field-input" id="m-pcat" style="background:rgba(255,255,255,.06);color:var(--text)">
+          ${["Documents","Clothing","Electronics","Toiletries","Other"].map(c=>`<option value="${c}"${(p.category||"Other")===c?" selected":""}>${c}</option>`).join("")}
+        </select>
+      </div>
       <button class="save-btn" id="m-save-pack">Save</button>`;
+  } else if (type === "addPack") {
+    inner = `
+      <div class="field-wrap"><label class="field-label">Item</label><input class="field-input" id="m-pitem" value=""/></div>
+      <div class="field-wrap"><label class="field-label">Category</label>
+        <select class="field-input" id="m-pcat" style="background:rgba(255,255,255,.06);color:var(--text)">
+          ${["Documents","Clothing","Electronics","Toiletries","Other"].map(c=>`<option value="${c}"${c==="Other"?" selected":""}>${c}</option>`).join("")}
+        </select>
+      </div>
+      <button class="save-btn" id="m-save-addpack">Add item</button>`;
   } else if (type === "addNote") {
     inner = `
       <div class="field-wrap"><label class="field-label">Icon</label><input class="field-input" id="m-nicon" value="📝"/></div>
@@ -822,7 +896,7 @@ function renderModal() {
   <div class="overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">${type==="editStop"?"Edit Stop":type==="addStop"?"Add Stop":type==="editPack"?"Edit Item":type==="addNote"?"Add Note":type==="editFood"?"Edit Place":type==="addFood"?"Add Place":type==="addDay"?"Add Day":type==="editDay"?"Edit Day":type==="editMeta"?"Trip Details":type==="editBudgetCat"?"Edit Category":"Edit Note"}</span>
+        <span class="modal-title">${type==="editStop"?"Edit Stop":type==="addStop"?"Add Stop":type==="editPack"?"Edit Item":type==="addPack"?"Add Item":type==="addNote"?"Add Note":type==="editFood"?"Edit Place":type==="addFood"?"Add Place":type==="addDay"?"Add Day":type==="editDay"?"Edit Day":type==="editMeta"?"Trip Details":type==="editBudgetCat"?"Edit Category":"Edit Note"}</span>
         <button style="background:none;border:none;color:#444;font-size:1.1rem" id="modal-close">✕</button>
       </div>
       ${inner}
@@ -991,7 +1065,14 @@ function bindAll() {
   // add pack
   const addPackBtn = document.getElementById("add-pack");
   if (addPackBtn) addPackBtn.onclick = ()=>{
-    save({...data, packing:[...data.packing,{id:"p"+uid(),item:"New item",done:false}]});
+    state.modal = {type:"addPack", payload:{}};
+    render();
+  };
+
+  // reset packing
+  const resetPackBtn = document.getElementById("reset-packing");
+  if (resetPackBtn) resetPackBtn.onclick = ()=>{
+    save({...data, packing:data.packing.map(p=>({...p,done:false}))});
   };
 
   // budget fields
@@ -1085,6 +1166,24 @@ function bindAll() {
     save({...data, food:data.food.filter(f=>f.id!==b.dataset.delfood)});
   });
 
+  // visited/tried toggle on food place
+  document.querySelectorAll("[data-togglevisited]").forEach(b => b.onclick = (e)=>{
+    e.stopPropagation();
+    const id = b.dataset.togglevisited;
+    save({...data, food:data.food.map(f=>f.id!==id?f:{...f,visited:!f.visited})});
+  });
+
+  // untried only toggle
+  const foodUntriedBtn = document.getElementById("food-untried");
+  if (foodUntriedBtn) foodUntriedBtn.onclick = ()=>{
+    state.foodUntriedOnly = !state.foodUntriedOnly;
+    render();
+  };
+
+  // print button
+  const printBtn = document.getElementById("print-btn");
+  if (printBtn) printBtn.onclick = () => window.print();
+
   // edit note
   document.querySelectorAll("[data-editnote]").forEach(b => b.onclick = ()=>{
     const n = data.notes.find(x=>x.id===b.dataset.editnote);
@@ -1102,7 +1201,8 @@ function bindAll() {
   const saveStop = document.getElementById("m-save-stop");
   if (saveStop) saveStop.onclick = ()=>{
     const {dayId,stop} = state.modal.payload;
-    const updated = {...stop, time:document.getElementById("m-time").value, place:document.getElementById("m-place").value, note:document.getElementById("m-note").value, icon:document.getElementById("m-icon").value};
+    const costEl = document.getElementById("m-cost");
+    const updated = {...stop, time:document.getElementById("m-time").value, place:document.getElementById("m-place").value, note:document.getElementById("m-note").value, icon:document.getElementById("m-icon").value, cost:costEl&&costEl.value?+costEl.value:(stop.cost||null)};
     const nd = {...data, days:data.days.map(d=>+d.id!==+dayId?d:{...d,stops:d.stops.map(s=>s.id!==updated.id?s:updated)})};
     state.modal=null; save(nd);
   };
@@ -1111,7 +1211,8 @@ function bindAll() {
   const saveAddStop = document.getElementById("m-save-addstop");
   if (saveAddStop) saveAddStop.onclick = ()=>{
     const {dayId} = state.modal.payload;
-    const ns = {id:uid(),time:document.getElementById("m-time").value,place:document.getElementById("m-place").value,note:document.getElementById("m-note").value,icon:document.getElementById("m-icon").value,checked:false};
+    const costEl = document.getElementById("m-cost");
+    const ns = {id:uid(),time:document.getElementById("m-time").value,place:document.getElementById("m-place").value,note:document.getElementById("m-note").value,icon:document.getElementById("m-icon").value,checked:false,cost:costEl&&costEl.value?+costEl.value:null};
     const nd = {...data, days:data.days.map(d=>+d.id!==+dayId?d:{...d,stops:[...d.stops,ns]})};
     state.modal=null; save(nd);
   };
@@ -1119,9 +1220,19 @@ function bindAll() {
   // modal save pack item
   const savePack = document.getElementById("m-save-pack");
   if (savePack) savePack.onclick = ()=>{
-    const updated = {...state.modal.payload, item:document.getElementById("m-pitem").value};
+    const catEl = document.getElementById("m-pcat");
+    const updated = {...state.modal.payload, item:document.getElementById("m-pitem").value, category:catEl?catEl.value:(state.modal.payload.category||"Other")};
     save({...data, packing:data.packing.map(p=>p.id!==updated.id?p:updated)});
     state.modal=null; render();
+  };
+
+  // modal add pack item
+  const saveAddPack = document.getElementById("m-save-addpack");
+  if (saveAddPack) saveAddPack.onclick = ()=>{
+    const item = document.getElementById("m-pitem").value.trim() || "New item";
+    const category = document.getElementById("m-pcat").value || "Other";
+    const np = {id:"p"+uid(), item, category, done:false};
+    state.modal=null; save({...data, packing:[...data.packing, np]});
   };
 
   // modal save note

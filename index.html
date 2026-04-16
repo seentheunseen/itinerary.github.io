@@ -113,16 +113,30 @@ function formatDateRange(start, end) {
   return `${months[s.getMonth()]} ${s.getDate()} – ${months[e.getMonth()]} ${e.getDate()}, ${s.getFullYear()}`;
 }
 
+// ─── STATUS HELPER ────────────────────────────────────────────────────────────
+function deriveStatus(m) {
+  if (!m.startDate) return m.status === "past" ? "past" : "upcoming";
+  const today = new Date(); today.setHours(0,0,0,0);
+  const start = new Date(m.startDate + "T00:00:00");
+  const end = m.endDate ? new Date(m.endDate + "T00:00:00") : start;
+  if (today > end) return "past";
+  if (today >= start) return "live";
+  return "upcoming";
+}
+
 // ─── RENDER TRIPS ─────────────────────────────────────────────────────────────
 function renderTrips(list) {
   const grid = document.getElementById("trip-grid");
 
-  const cards = list.map(({ id, meta: m, isFallback, href }) => `
+  const cards = list.map(({ id, meta: m, isFallback, href }) => {
+    const st = deriveStatus(m);
+    const stLabel = st === "past" ? "Past trip" : st === "live" ? "Live now ✈️" : "Upcoming";
+    return `
     <a class="trip-card" href="${isFallback ? href : `app/?id=${id}`}">
       <div class="trip-card-top">
         <span class="trip-flag">${m.coverEmoji || m.flag || "✈️"}</span>
         <div style="display:flex;align-items:center;gap:8px">
-          <span class="trip-status-badge ${m.status === "past" ? "past" : "upcoming"}">${m.status === "past" ? "Past trip" : "Upcoming"}</span>
+          <span class="trip-status-badge ${st === "past" ? "past" : st === "live" ? "live" : "upcoming"}">${stLabel}</span>
           ${!isFallback ? `<button class="trip-delete-btn" data-delete-id="${id}" title="Remove itinerary">✕</button>` : ""}
         </div>
       </div>
@@ -142,7 +156,7 @@ function renderTrips(list) {
         <span class="trip-cta-arrow">→</span>
       </div>
     </a>
-  `).join("");
+  `; }).join("");
 
   const newCard = db
     ? `<button class="trip-card-new" id="create-new-btn">
@@ -285,24 +299,24 @@ document.getElementById("c-create").onclick = () => {
 
   // Default packing list
   const packing = [
-    {id:"p1",  item:"Passport + travel docs",          done:false},
-    {id:"p2",  item:"Travel insurance",                done:false},
-    {id:"p3",  item:"Local currency (cash)",           done:false},
-    {id:"p4",  item:"Credit / debit card",             done:false},
-    {id:"p5",  item:"Phone + charger",                 done:false},
-    {id:"p6",  item:"Power bank",                      done:false},
-    {id:"p7",  item:"Universal travel adapter",        done:false},
-    {id:"p8",  item:"Earphones / headphones",          done:false},
-    {id:"p9",  item:"Clothes (tops, bottoms, undies)", done:false},
-    {id:"p10", item:"Comfortable walking shoes",       done:false},
-    {id:"p11", item:"Light jacket / hoodie",           done:false},
-    {id:"p12", item:"Toiletries (toothbrush, etc.)",   done:false},
-    {id:"p13", item:"Deodorant",                       done:false},
-    {id:"p14", item:"Sunscreen",                       done:false},
-    {id:"p15", item:"Reusable water bottle",           done:false},
-    {id:"p16", item:"Medicines & first aid",           done:false},
-    {id:"p17", item:"Snacks for travel",               done:false},
-    {id:"p18", item:"Small day bag / backpack",        done:false},
+    {id:"p1",  item:"Passport + travel docs",          category:"Documents",    done:false},
+    {id:"p2",  item:"Travel insurance",                category:"Documents",    done:false},
+    {id:"p3",  item:"Local currency (cash)",           category:"Documents",    done:false},
+    {id:"p4",  item:"Credit / debit card",             category:"Documents",    done:false},
+    {id:"p5",  item:"Phone + charger",                 category:"Electronics",  done:false},
+    {id:"p6",  item:"Power bank",                      category:"Electronics",  done:false},
+    {id:"p7",  item:"Universal travel adapter",        category:"Electronics",  done:false},
+    {id:"p8",  item:"Earphones / headphones",          category:"Electronics",  done:false},
+    {id:"p9",  item:"Clothes (tops, bottoms, undies)", category:"Clothing",     done:false},
+    {id:"p10", item:"Comfortable walking shoes",       category:"Clothing",     done:false},
+    {id:"p11", item:"Light jacket / hoodie",           category:"Clothing",     done:false},
+    {id:"p12", item:"Toiletries (toothbrush, etc.)",   category:"Toiletries",   done:false},
+    {id:"p13", item:"Deodorant",                       category:"Toiletries",   done:false},
+    {id:"p14", item:"Sunscreen",                       category:"Toiletries",   done:false},
+    {id:"p15", item:"Reusable water bottle",           category:"Other",        done:false},
+    {id:"p16", item:"Medicines & first aid",           category:"Other",        done:false},
+    {id:"p17", item:"Snacks for travel",               category:"Other",        done:false},
+    {id:"p18", item:"Small day bag / backpack",        category:"Other",        done:false},
   ];
 
   // Default budget categories

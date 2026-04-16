@@ -47,3 +47,22 @@ a:hover { text-decoration: underline; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes modalIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+@media print {
+  .back-link, .theme-toggle, .tabs, #print-btn, #edit-meta-btn,
+  #scroll-top, .day-filter, #add-day, #reset-packing,
+  .icon-btn, .drag-handle, .stop-actions,
+  .overlay, .modal { display: none !important; }
+  body { background: white !important; color: #111 !important;
+         padding-bottom: 0; background-image: none !important; }
+  .header { padding: 16px 20px; border-bottom: 1px solid #ccc; }
+  .header-title { -webkit-text-fill-color: #111 !important; background: none !important; color: #111 !important; font-size: 1.6rem !important; }
+  .header-eyebrow, .header-sub { color: #555 !important; }
+  .status-bar { display: none !important; }
+  .day-block { break-inside: avoid; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+  .stop-card { border: 1px solid #e0e0e0 !important; background: white !important; }
+  .pack-item, .budget-row, .note-card { border: 1px solid #eee !important; background: white !important; }
+  .progress-bar { display: none !important; }
+  * { color: #111 !important; background: transparent !important; box-shadow: none !important; text-decoration: none !important; }
+  a[href]:after { content: " (" attr(href) ")"; font-size: .7rem; color: #555 !important; }
+}
