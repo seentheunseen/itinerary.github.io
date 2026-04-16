@@ -49,20 +49,65 @@ a:hover { text-decoration: underline; }
 @keyframes modalIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 @media print {
+  /* ── Hide interactive chrome ── */
   .back-link, .theme-toggle, .tabs, #print-btn, #edit-meta-btn,
   #scroll-top, .day-filter, #add-day, #reset-packing,
-  .icon-btn, .drag-handle, .stop-actions,
-  .overlay, .modal { display: none !important; }
-  body { background: white !important; color: #111 !important;
-         padding-bottom: 0; background-image: none !important; }
-  .header { padding: 16px 20px; border-bottom: 1px solid #ccc; }
-  .header-title { -webkit-text-fill-color: #111 !important; background: none !important; color: #111 !important; font-size: 1.6rem !important; }
-  .header-eyebrow, .header-sub { color: #555 !important; }
-  .status-bar { display: none !important; }
-  .day-block { break-inside: avoid; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
-  .stop-card { border: 1px solid #e0e0e0 !important; background: white !important; }
-  .pack-item, .budget-row, .note-card { border: 1px solid #eee !important; background: white !important; }
-  .progress-bar { display: none !important; }
-  * { color: #111 !important; background: transparent !important; box-shadow: none !important; text-decoration: none !important; }
-  a[href]:after { content: " (" attr(href) ")"; font-size: .7rem; color: #555 !important; }
+  .icon-btn, .drag-handle, .stop-actions, .add-stop-btn,
+  #add-pack, #add-budget, #add-food, #add-note,
+  .food-bar, .search-wrap, .map-toggle-wrap,
+  .overlay, .modal, .status-bar, .progress-bar { display: none !important; }
+
+  /* ── Base ── */
+  body {
+    background: white !important;
+    background-image: none !important;
+    color: #111 !important;
+    padding-bottom: 0;
+    font-size: 11pt;
+  }
+  * { color: #111 !important; background: transparent !important; box-shadow: none !important; }
+  a { text-decoration: none !important; }
+
+  /* ── Header ── */
+  .header { padding: 12px 20px 12px; border-bottom: 2px solid #333; margin-bottom: 16px; }
+  .header-eyebrow { color: #555 !important; font-size: 9pt; letter-spacing: 0.1em; }
+  .header-title { -webkit-text-fill-color: #111 !important; background: none !important; color: #111 !important; font-size: 18pt !important; }
+  .header-sub { color: #555 !important; font-size: 9pt; }
+
+  /* ── Print section labels ── */
+  .print-section-label {
+    display: block !important;
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #ccc;
+    padding: 6px 0 4px;
+    margin: 20px 0 10px;
+    break-before: page;
+  }
+  .print-section-label:first-child { break-before: avoid; margin-top: 0; }
+
+  /* ── Itinerary ── */
+  .day-block { break-inside: avoid; margin-bottom: 14px; border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; }
+  .day-header { margin-bottom: 8px; }
+  .timeline-line { display: none !important; }
+  .stop-card { border: 1px solid #e0e0e0 !important; background: white !important; margin-bottom: 6px; padding: 6px 10px !important; }
+  .stop-dot { border: 1px solid #999 !important; background: white !important; }
+
+  /* ── Packing ── */
+  .pack-item { border: 1px solid #eee !important; background: white !important; padding: 5px 10px !important; margin-bottom: 4px; }
+  .pack-category-header { font-weight: 700; margin-top: 10px; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+
+  /* ── Budget ── */
+  .budget-row { border: 1px solid #eee !important; background: white !important; }
+  .budget-input { border: 1px solid #ddd !important; background: white !important; -webkit-appearance: none; }
+  .budget-total { border-top: 2px solid #333 !important; }
+
+  /* ── Bookings ── */
+  .booking-card { border: 1px solid #eee !important; background: white !important; break-inside: avoid; }
+  .booking-type-icon { background: #f5f5f5 !important; border-color: #ddd !important; }
+  .booking-url { color: #555 !important; }
+
+  /* ── Notes ── */
+  .note-card { border: 1px solid #eee !important; background: white !important; break-inside: avoid; }
 }

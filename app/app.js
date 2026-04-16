@@ -10,7 +10,7 @@ if (!ITINERARY_ID) { location.href = "../index.html"; }
 let db = null;
 let dbRef = null;
 let meta = {};
-let data = { days: [], packing: [], budget: [], food: [], notes: [] };
+let data = { days: [], packing: [], budget: [], food: [], notes: [], bookings: [] };
 let state = {
   tab: "itinerary",
   dayFilter: null,
@@ -25,6 +25,7 @@ let state = {
   connected: false,
   configured: !!localStorage.getItem("fb_config"),
   fbConfig: JSON.parse(localStorage.getItem("fb_config") || "null"),
+  printing: false,
 };
 
 // ─── FIREBASE ───────────────────────────────────────────────────────────────
@@ -42,7 +43,8 @@ function initFirebase(config) {
           packing: toArr(val.packing),
           budget: toArr(val.budget),
           food: toArr(val.food),
-          notes: toArr(val.notes)
+          notes: toArr(val.notes),
+          bookings: toArr(val.bookings)
         };
         document.title = (meta.title || "Itinerary") + " · Trip";
       } else {
@@ -517,16 +519,25 @@ function mainApp() {
   </div>
 
   <div class="tabs">
-    ${[["itinerary","🗓 Itinerary"],["packing","🎒 Packing"],["budget","💰 Budget"],["food","🍜 Food & Cafes"],["notes","📝 Notes"]]
+    ${[["itinerary","🗓 Itinerary"],["packing","🎒 Packing"],["budget","💰 Budget"],["food","🍜 Food & Cafes"],["notes","📝 Notes"],["bookings","🎟 Bookings"]]
       .map(([k,l])=>`<button class="tab-btn${state.tab===k?' active':''}" data-tab="${k}">${l}</button>`).join("")}
   </div>
 
   <div class="content">
-    ${state.tab==="itinerary" ? renderItinerary() : ""}
-    ${state.tab==="packing"   ? renderPacking()   : ""}
-    ${state.tab==="budget"    ? renderBudget()     : ""}
-    ${state.tab==="food"      ? renderFood()       : ""}
-    ${state.tab==="notes"     ? renderTripNotes()  : ""}
+    ${state.printing ? `
+      <div class="print-section-label">Itinerary</div>${renderItinerary()}
+      <div class="print-section-label">Packing List</div>${renderPacking()}
+      <div class="print-section-label">Budget</div>${renderBudget()}
+      <div class="print-section-label">Bookings</div>${renderBookings()}
+      <div class="print-section-label">Notes</div>${renderTripNotes()}
+    ` : `
+      ${state.tab==="itinerary" ? renderItinerary() : ""}
+      ${state.tab==="packing"   ? renderPacking()   : ""}
+      ${state.tab==="budget"    ? renderBudget()     : ""}
+      ${state.tab==="food"      ? renderFood()       : ""}
+      ${state.tab==="notes"     ? renderTripNotes()  : ""}
+      ${state.tab==="bookings"  ? renderBookings()   : ""}
+    `}
   </div>
 
   ${state.modal ? renderModal() : ""}
@@ -770,6 +781,51 @@ function renderTripNotes() {
     </div>`}`;
 }
 
+// ─── BOOKINGS ────────────────────────────────────────────────────────────────
+const BOOKING_TYPES = {
+  flight:        { icon: "✈️",  label: "Flight"        },
+  accommodation: { icon: "🏨",  label: "Accommodation" },
+  transfer:      { icon: "🚌",  label: "Transfer"      },
+  other:         { icon: "🎟",  label: "Other"         },
+};
+
+function renderBookings() {
+  const sorted = [...data.bookings].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <h2 style="font-family:'Playfair Display',serif;font-size:1.3rem">Bookings</h2>
+    <button style="padding:6px 16px;background:rgba(200,149,108,.15);border:1px solid rgba(200,149,108,.4);border-radius:10px;color:var(--accent);font-size:.85rem;font-weight:700" id="add-booking">+ Add booking</button>
+  </div>
+  ${sorted.length === 0 ? `
+    <div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <div style="font-size:2.5rem;margin-bottom:16px">🎟</div>
+      <p style="font-size:.9rem">No bookings yet. Store flight numbers, hotel confirmations, and transfer details here.</p>
+    </div>` :
+    `<div style="display:flex;flex-direction:column;gap:12px">
+    ${sorted.map(b => {
+      const t = BOOKING_TYPES[b.type] || BOOKING_TYPES.other;
+      return `
+      <div class="booking-card">
+        <div class="booking-card-left">
+          <div class="booking-type-icon">${t.icon}</div>
+        </div>
+        <div class="booking-card-body">
+          <div class="booking-type-label">${t.label}</div>
+          <div class="booking-title">${b.title || "Untitled"}</div>
+          ${b.date ? `<div class="booking-dates">${b.date}${b.endDate ? ` → ${b.endDate}` : ""}</div>` : ""}
+          ${b.confirmCode ? `<div class="booking-confirm">Ref: <strong>${b.confirmCode}</strong></div>` : ""}
+          ${b.notes ? `<div class="booking-notes">${b.notes}</div>` : ""}
+          ${b.bookingUrl ? `<a href="${b.bookingUrl}" target="_blank" class="booking-url" onclick="event.stopPropagation()">🔗 View booking</a>` : ""}
+        </div>
+        <div class="stop-actions" style="flex-shrink:0;align-self:flex-start;padding-top:2px">
+          <button class="icon-btn" data-editbooking="${b.id}">✏️</button>
+          <button class="icon-btn del" data-delbooking="${b.id}">✕</button>
+        </div>
+      </div>`;
+    }).join("")}
+    </div>`}`;
+}
+
 // ─── MODALS ──────────────────────────────────────────────────────────────────
 function renderModal() {
   const { type, payload } = state.modal;
@@ -888,12 +944,51 @@ function renderModal() {
     inner = `
       <div class="field-wrap"><label class="field-label">Category Name</label><input class="field-input" id="m-budgetcat" value="${payload.category}"/></div>
       <button class="save-btn" id="m-save-budgetcat">Save</button>`;
+  } else if (type === "addBooking") {
+    inner = `
+      <div class="field-wrap"><label class="field-label">Type</label>
+        <select class="field-input" id="m-btype" style="background:rgba(255,255,255,.06);color:var(--text)">
+          <option value="flight">✈️ Flight</option>
+          <option value="accommodation">🏨 Accommodation</option>
+          <option value="transfer">🚌 Transfer</option>
+          <option value="other">🎟 Other</option>
+        </select>
+      </div>
+      <div class="field-wrap"><label class="field-label">Title</label><input class="field-input" id="m-btitle" placeholder="e.g. Cebu Pacific MNL→KHH"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field-wrap"><label class="field-label">Date / Check-in</label><input class="field-input" type="date" id="m-bdate" style="color-scheme:dark"/></div>
+        <div class="field-wrap"><label class="field-label">End Date / Check-out</label><input class="field-input" type="date" id="m-benddate" style="color-scheme:dark"/></div>
+      </div>
+      <div class="field-wrap"><label class="field-label">Confirmation / Ref No.</label><input class="field-input" id="m-bconfirm" placeholder="e.g. ABC123"/></div>
+      <div class="field-wrap"><label class="field-label">Notes</label><textarea class="field-input" id="m-bnotes" rows="2" placeholder="Terminal, seat, check-in time…"></textarea></div>
+      <div class="field-wrap"><label class="field-label">Booking URL (optional)</label><input class="field-input" id="m-burl" placeholder="https://..."/></div>
+      <button class="save-btn" id="m-save-addbooking">Add booking</button>`;
+  } else if (type === "editBooking") {
+    const b = payload;
+    inner = `
+      <div class="field-wrap"><label class="field-label">Type</label>
+        <select class="field-input" id="m-btype" style="background:rgba(255,255,255,.06);color:var(--text)">
+          <option value="flight" ${b.type==="flight"?"selected":""}>✈️ Flight</option>
+          <option value="accommodation" ${b.type==="accommodation"?"selected":""}>🏨 Accommodation</option>
+          <option value="transfer" ${b.type==="transfer"?"selected":""}>🚌 Transfer</option>
+          <option value="other" ${b.type==="other"?"selected":""}>🎟 Other</option>
+        </select>
+      </div>
+      <div class="field-wrap"><label class="field-label">Title</label><input class="field-input" id="m-btitle" value="${b.title || ''}"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field-wrap"><label class="field-label">Date / Check-in</label><input class="field-input" type="date" id="m-bdate" value="${b.date || ''}" style="color-scheme:dark"/></div>
+        <div class="field-wrap"><label class="field-label">End Date / Check-out</label><input class="field-input" type="date" id="m-benddate" value="${b.endDate || ''}" style="color-scheme:dark"/></div>
+      </div>
+      <div class="field-wrap"><label class="field-label">Confirmation / Ref No.</label><input class="field-input" id="m-bconfirm" value="${b.confirmCode || ''}"/></div>
+      <div class="field-wrap"><label class="field-label">Notes</label><textarea class="field-input" id="m-bnotes" rows="2">${b.notes || ''}</textarea></div>
+      <div class="field-wrap"><label class="field-label">Booking URL (optional)</label><input class="field-input" id="m-burl" value="${b.bookingUrl || ''}"/></div>
+      <button class="save-btn" id="m-save-editbooking">Save changes</button>`;
   }
   return `
   <div class="overlay" id="modal-overlay">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">${type==="editStop"?"Edit Stop":type==="addStop"?"Add Stop":type==="editPack"?"Edit Item":type==="addPack"?"Add Item":type==="addNote"?"Add Note":type==="editFood"?"Edit Place":type==="addFood"?"Add Place":type==="addDay"?"Add Day":type==="editDay"?"Edit Day":type==="editMeta"?"Trip Details":type==="editBudgetCat"?"Edit Category":"Edit Note"}</span>
+        <span class="modal-title">${type==="editStop"?"Edit Stop":type==="addStop"?"Add Stop":type==="editPack"?"Edit Item":type==="addPack"?"Add Item":type==="addNote"?"Add Note":type==="editFood"?"Edit Place":type==="addFood"?"Add Place":type==="addDay"?"Add Day":type==="editDay"?"Edit Day":type==="editMeta"?"Trip Details":type==="editBudgetCat"?"Edit Category":type==="addBooking"?"Add Booking":type==="editBooking"?"Edit Booking":"Edit Note"}</span>
         <button style="background:none;border:none;color:#444;font-size:1.1rem" id="modal-close">✕</button>
       </div>
       ${inner}
@@ -1320,7 +1415,69 @@ function bindAll() {
     }
     state.modal=null; save({...data, food:[...data.food, nf]});
   };
+
+  // add booking
+  const addBookingBtn = document.getElementById("add-booking");
+  if (addBookingBtn) addBookingBtn.onclick = ()=>{ state.modal={type:"addBooking",payload:{}}; render(); };
+
+  // edit booking
+  document.querySelectorAll("[data-editbooking]").forEach(b => b.onclick = (e)=>{
+    e.stopPropagation();
+    const bk = data.bookings.find(x=>x.id===b.dataset.editbooking);
+    state.modal = {type:"editBooking", payload:{...bk}};
+    render();
+  });
+
+  // delete booking
+  document.querySelectorAll("[data-delbooking]").forEach(b => b.onclick = (e)=>{
+    e.stopPropagation();
+    if (confirm("Remove this booking?")) {
+      save({...data, bookings:data.bookings.filter(bk=>bk.id!==b.dataset.delbooking)});
+    }
+  });
+
+  // modal save add booking
+  const saveAddBooking = document.getElementById("m-save-addbooking");
+  if (saveAddBooking) saveAddBooking.onclick = ()=>{
+    const nb = {
+      id: "bk"+uid(),
+      type: document.getElementById("m-btype").value,
+      title: document.getElementById("m-btitle").value.trim(),
+      date: document.getElementById("m-bdate").value,
+      endDate: document.getElementById("m-benddate").value,
+      confirmCode: document.getElementById("m-bconfirm").value.trim(),
+      notes: document.getElementById("m-bnotes").value.trim(),
+      bookingUrl: document.getElementById("m-burl").value.trim(),
+    };
+    state.modal=null; save({...data, bookings:[...data.bookings, nb]});
+  };
+
+  // modal save edit booking
+  const saveEditBooking = document.getElementById("m-save-editbooking");
+  if (saveEditBooking) saveEditBooking.onclick = ()=>{
+    const updated = {
+      ...state.modal.payload,
+      type: document.getElementById("m-btype").value,
+      title: document.getElementById("m-btitle").value.trim(),
+      date: document.getElementById("m-bdate").value,
+      endDate: document.getElementById("m-benddate").value,
+      confirmCode: document.getElementById("m-bconfirm").value.trim(),
+      notes: document.getElementById("m-bnotes").value.trim(),
+      bookingUrl: document.getElementById("m-burl").value.trim(),
+    };
+    state.modal=null; save({...data, bookings:data.bookings.map(bk=>bk.id!==updated.id?bk:updated)});
+  };
 }
+
+// ─── PRINT HANDLERS ─────────────────────────────────────────────────────────
+window.addEventListener("beforeprint", () => {
+  state.printing = true;
+  render();
+});
+window.addEventListener("afterprint", () => {
+  state.printing = false;
+  render();
+});
 
 // kick off
 render();

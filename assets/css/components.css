@@ -1,3 +1,37 @@
+/* PRINT SECTION LABEL (screen: hidden; print: shown via @media print in base.css) */
+.print-section-label { display: none; }
+
+/* BOOKING CARDS */
+.booking-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.booking-card:hover { border-color: rgba(200,149,108,0.3); background: var(--surface-hover); }
+.booking-card-left { flex-shrink: 0; }
+.booking-type-icon {
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  background: rgba(200,149,108,0.12);
+  border: 1px solid rgba(200,149,108,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+}
+.booking-card-body { flex: 1; min-width: 0; }
+.booking-type-label { font-size: .63rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+.booking-title { font-size: .95rem; font-weight: 700; color: var(--text); margin-bottom: 5px; line-height: 1.3; }
+.booking-dates { font-size: .78rem; color: var(--text-dim); margin-bottom: 4px; }
+.booking-confirm { font-size: .78rem; color: var(--text-dim); margin-bottom: 4px; }
+.booking-confirm strong { color: var(--text); letter-spacing: .04em; }
+.booking-notes { font-size: .77rem; color: var(--muted); line-height: 1.55; margin-bottom: 6px; white-space: pre-wrap; }
+.booking-url { font-size: .75rem; color: var(--accent); font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.booking-url:hover { text-decoration: underline; }
+
 /* BACK LINK */
 .back-link {
   position: absolute; top: 20px; left: 20px;
