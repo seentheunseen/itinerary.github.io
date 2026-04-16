@@ -725,7 +725,6 @@ function renderFood() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <span style="font-size:1.4rem">${catIcon[p.category]}</span>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-          <span style="font-size:.65rem;padding:3px 10px;border-radius:12px;background:rgba(200,149,108,.15);color:var(--accent);border:1px solid rgba(200,149,108,.25);font-weight:700">${p.tag}</span>
           <button data-togglevisited="${p.id}" style="padding:3px 8px;border-radius:8px;font-size:.65rem;font-weight:700;background:${p.visited?'rgba(123,158,107,.2)':'transparent'};border:1px solid ${p.visited?'rgba(123,158,107,.4)':'var(--border)'};color:${p.visited?'var(--green)':'var(--muted)'};cursor:pointer">${p.visited?"✓ Tried":"Try it"}</button>
           <button class="icon-btn" data-editfood="${p.id}">✏️</button>
           <button class="icon-btn del" data-delfood="${p.id}">✕</button>
