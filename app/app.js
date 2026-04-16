@@ -827,7 +827,6 @@ function renderModal() {
           <option value="nightmarket" ${fp.category==="nightmarket"?"selected":""}>🏮 Night Market</option>
         </select>
       </div>
-      <div class="field-wrap"><label class="field-label">Tag (e.g. Italian · $$)</label><input class="field-input" id="m-ftag" value="${fp.tag}"/></div>
       <div class="field-wrap"><label class="field-label">Description</label><textarea class="field-input" id="m-fdesc" rows="3">${fp.desc}</textarea></div>
       <div class="field-wrap"><label class="field-label">Hours</label><input class="field-input" id="m-fhours" value="${fp.hours}"/></div>
       <div class="field-wrap"><label class="field-label">Google Maps URL</label><input class="field-input" id="m-fmaps" value="${fp.maps}"/></div>
@@ -846,7 +845,6 @@ function renderModal() {
           <option value="nightmarket">🏮 Night Market</option>
         </select>
       </div>
-      <div class="field-wrap"><label class="field-label">Tag (e.g. Italian · $$)</label><input class="field-input" id="m-ftag" value=""/></div>
       <div class="field-wrap"><label class="field-label">Description</label><textarea class="field-input" id="m-fdesc" rows="3"></textarea></div>
       <div class="field-wrap"><label class="field-label">Hours</label><input class="field-input" id="m-fhours" value=""/></div>
       <div class="field-wrap"><label class="field-label">Google Maps URL (optional)</label><input class="field-input" id="m-fmaps" value=""/></div>
@@ -1288,7 +1286,6 @@ function bindAll() {
       ...state.modal.payload,
       name: document.getElementById("m-fname").value,
       category: document.getElementById("m-fcat").value,
-      tag: document.getElementById("m-ftag").value,
       desc: document.getElementById("m-fdesc").value,
       hours: document.getElementById("m-fhours").value,
       maps: document.getElementById("m-fmaps").value,
@@ -1311,7 +1308,6 @@ function bindAll() {
       id: "f"+uid(),
       name: document.getElementById("m-fname").value,
       category: document.getElementById("m-fcat").value,
-      tag: document.getElementById("m-ftag").value,
       desc: document.getElementById("m-fdesc").value,
       hours: document.getElementById("m-fhours").value,
       maps: document.getElementById("m-fmaps").value,
